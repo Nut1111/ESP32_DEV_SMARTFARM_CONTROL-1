@@ -3,6 +3,20 @@
 #include "DevRelay.h"
 #include "DevSwitch.h"
 
+// OLED display library
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// OLED display configuration
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+#define SCREEN_ADDRESS 0x3C
+
+// Instantiate OLED display object
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
 // Pin definitions (from HardwareESP32Config.md)
 const uint8_t PIN_SW1 = 34; // SW1 = Enter/Select (Active Low)
 const uint8_t PIN_SW2 = 35; // SW2 = Down (Active Low)
@@ -30,6 +44,14 @@ const uint8_t PIN_ISO2 = 27; // ISO2 = TankLevelSensor2 (water overflow) Active 
 // Instantiate isolated inputs (Active Low)
 DevIsoInput iso1(PIN_ISO1, false);
 DevIsoInput iso2(PIN_ISO2, false);
+
+// Display update timing
+unsigned long lastDisplayUpdate = 0;
+const unsigned long DISPLAY_INTERVAL = 250; // ms
+
+// Forward declarations
+void showWelcome();
+void updateDisplay();
 
 // Callback handlers
 void onSw1Click() {
@@ -77,9 +99,90 @@ void onIso2Inactive() {
   Serial.println("ISO2: TankLevelSensor2 - OK (inactive)");
 }
 
+// --- OLED helpers ---
+void showWelcome() {
+  display.clearDisplay();
+  
+  // Draw frame
+  display.drawRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SSD1306_WHITE);
+  display.drawRect(1, 1, SCREEN_WIDTH-2, SCREEN_HEIGHT-2, SSD1306_WHITE);
+  
+  // Title
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(8, 12);
+  display.println("ESP32");
+  display.setCursor(8, 28);
+  display.println("DevKit V2");
+  
+  // Subtitle
+  display.setTextSize(1);
+  display.setCursor(10, 48);
+  display.println("Smart Farm Control");
+  
+  display.display();
+  delay(2000);
+}
+
+void updateDisplay() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+
+  // Header
+  display.setCursor(12, 0);
+  display.println("ESP32 Smart Farm");
+  display.drawFastHLine(0, 9, SCREEN_WIDTH, SSD1306_WHITE);
+
+  // Column headers
+  display.setCursor(0, 13);
+  display.print("SWITCH:");
+  display.setCursor(72, 13);
+  display.print("RELAY:");
+
+  // Left column - Switches (use checkboxes style)
+  display.setCursor(2, 23);
+  display.print("Up  ["); display.print(sw3.isPressed() ? "X" : " "); display.print("]");
+  display.setCursor(2, 33);
+  display.print("Dn  ["); display.print(sw2.isPressed() ? "X" : " "); display.print("]");
+  display.setCursor(2, 43);
+  display.print("Sel ["); display.print(sw1.isPressed() ? "X" : " "); display.print("]");
+
+  // Vertical divider
+  display.drawFastVLine(64, 13, 40, SSD1306_WHITE);
+
+  // Right column - Relays
+  display.setCursor(68, 23);
+  display.print("Fan ["); display.print(relayFan.getState() ? "X" : " "); display.print("]");
+  display.setCursor(68, 33);
+  display.print("Pmp ["); display.print(relayPump.getState() ? "X" : " "); display.print("]");
+  display.setCursor(68, 43);
+  display.print("Htr ["); display.print(relayHeater.getState() ? "X" : " "); display.print("]");
+
+  // Bottom separator
+  display.drawFastHLine(0, 53, SCREEN_WIDTH, SSD1306_WHITE);
+
+  // Tank status at bottom
+  display.setCursor(8, 56);
+  display.print("TANK: T1[");
+  display.print(iso1.isActive() ? "DRY" : "OK");
+  display.print("] T2[");
+  display.print(iso2.isActive() ? "FUL" : "OK");
+  display.print("]");
+
+  display.display();
+}
+
 void setup() {
   Serial.begin(115200);
   delay(10);
+
+  // Initialize OLED
+  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println("SSD1306 allocation failed");
+  } else {
+    showWelcome();
+  }
 
   // Initialize switches
   sw1.begin();
@@ -132,5 +235,11 @@ void loop() {
   }
 
   delay(10);
+
+  // Update display at interval
+  if (millis() - lastDisplayUpdate >= DISPLAY_INTERVAL) {
+    lastDisplayUpdate = millis();
+    updateDisplay();
+  }
 }
 
