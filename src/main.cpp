@@ -8,9 +8,8 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-// WiFi Manager
+// WiFi
 #include <WiFi.h>
-#include <WiFiManager.h>
 
 // OLED display configuration
 #define SCREEN_WIDTH 128
@@ -202,36 +201,13 @@ void setupWiFi() {
   
   display.display();
   
-  Serial.println("Starting WiFi Manager...");
+  Serial.println("WiFi function called");
   Serial.println("SSID: ESP32_Farm");
-  Serial.println("IP: 192.168.4.1");
   
-  WiFiManager wifiManager;
-  wifiManager.setConfigPortalTimeout(180); // 3 minutes timeout
-  
-  // Try to connect
-  if (wifiManager.autoConnect("ESP32_Farm")) {
-    wifiConnected = true;
-    ipAddress = WiFi.localIP().toString();
-    Serial.println("WiFi Connected!");
-    Serial.print("IP Address: ");
-    Serial.println(ipAddress);
-    
-    // Show success message
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setCursor(20, 24);
-    display.print("WiFi Connected!");
-    display.setCursor(6, 36);
-    display.print("IP:");
-    display.print(ipAddress);
-    display.display();
-    delay(2000);
-  } else {
-    wifiConnected = false;
-    ipAddress = "Not Connected";
-    Serial.println("WiFi connection failed");
-  }
+  // TODO: Implement WiFi connection using WiFi.h
+  // For now, we'll skip the auto-connect and just set wifiConnected to false
+  wifiConnected = false;
+  ipAddress = "Not Connected";
 }
 
 // Check for WiFi reset button during startup
@@ -286,8 +262,7 @@ void checkWiFiResetButton() {
     display.print("Resetting WiFi...");
     display.display();
     
-    WiFiManager wifiManager;
-    wifiManager.resetSettings();
+    Serial.println("WiFi reset requested");
     delay(1000);
     
     display.clearDisplay();
@@ -386,4 +361,34 @@ void setup() {
   // Register ISO callbacks
   iso1.onActive(onIso1Active);
   iso1.onInactive(onIso1Inactive);
-  iso2.onActive(onIso2Active
+  iso2.onActive(onIso2Active);
+  iso2.onInactive(onIso2Inactive);
+  
+  // Register relay control callbacks for switches (example)
+  sw1.onClick(onSw1Click);
+  sw2.onClick(onSw2Click);
+  sw3.onClick(onSw3Click);
+}
+
+void loop() {
+  // Update switches
+  sw1.update();
+  sw2.update();
+  sw3.update();
+
+  // Check relay timers
+  relayFan.checkTimer();
+  relayPump.checkTimer();
+  relayHeater.checkTimer();
+
+  // Update isolated inputs
+  iso1.update();
+  iso2.update();
+
+  // Update display at interval
+  unsigned long now = millis();
+  if ((now - lastDisplayUpdate) >= DISPLAY_INTERVAL) {
+    updateDisplay();
+    lastDisplayUpdate = now;
+  }
+}
